@@ -1,0 +1,223 @@
+﻿<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sudoku Website</title>
+  <style>
+    body { margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #eef2f7; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+    header { width: 100%; background: #4a76a8; color: #fff; padding: 10px 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.2); display: flex; justify-content: space-between; align-items: center; }
+    header h1 { margin: 0; font-size: 24px; }
+    #loginOverlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; }
+    #loginBox { background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.3); }
+    #loginBox input { padding: 8px; font-size: 16px; width: 200px; }
+    #loginBox button { margin-left: 10px; padding: 8px 12px; font-size: 16px; cursor: pointer; }
+    #controls { margin: 20px 0; display: flex; gap: 15px; align-items: center; }
+    #board { display: grid; background: #333; border: 4px solid #333; }
+    .cell { width: 45px; height: 45px; text-align: center; font-size: 20px; border: 1px solid #333; background: #fff; border-radius: 4px; }
+    .cell:focus { outline: 2px solid #4a76a8; }
+    #missing { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 10px; }
+    .missing-item { width: 45px; height: 45px; background: #fff; border: 1px solid #333; border-radius: 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+    .missing-item .num { font-weight: bold; color: #000; font-size: 18px; }
+    .missing-item .count { color: #aaa; font-size: 14px; }
+    #timerDisplay { font-size: 18px; font-weight: bold; color: #333; }
+    #leaderboard { margin-top: 30px; width: 90%; max-width: 500px; background: #fff; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.2); overflow: hidden; }
+    #leaderboard table { width: 100%; border-collapse: collapse; }
+    #leaderboard th, #leaderboard td { padding: 8px; text-align: center; }
+    #leaderboard thead { background: #4a76a8; color: #fff; }
+    #leaderboard tbody tr:nth-child(even) { background: #f5f5f5; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Sudoku Challenge</h1>
+    <div id="timerDisplay">00:00</div>
+  </header>
+
+  <div id="loginOverlay">
+    <div id="loginBox">
+      <label>ชื่อผู้เล่น: <input type="text" id="playerNameInput" placeholder="ใส่ชื่อของคุณ"></label>
+      <button id="loginBtn">เริ่ม</button>
+    </div>
+  </div>
+
+  <div id="controls" style="display:none;">
+    <label>ระดับ:
+      <select id="levelSelect">
+        <option value="easy">ง่าย</option>
+        <option value="medium">ปานกลาง</option>
+        <option value="hard">ยาก</option>
+        <option value="expert">ขั้นสูง</option>
+      </select>
+    </label>
+    <button id="startBtn">เริ่มเกมใหม่</button>
+  </div>
+
+  <div id="board"></div>
+  <div id="missing"></div>
+
+  <div id="leaderboard">
+    <table>
+      <thead><tr><th>อันดับ</th><th>ชื่อผู้เล่น</th><th>เวลา</th><th>ระดับ</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <script>
+    const loginOverlay = document.getElementById('loginOverlay');
+    const loginBtn = document.getElementById('loginBtn');
+    const playerNameInput = document.getElementById('playerNameInput');
+    const controls = document.getElementById('controls');
+    const boardEl = document.getElementById('board');
+    const missingEl = document.getElementById('missing');
+    const timerDisplay = document.getElementById('timerDisplay');
+    const startBtn = document.getElementById('startBtn');
+    const levelSelect = document.getElementById('levelSelect');
+    let playerName;
+    let timerInterval, seconds;
+
+    loginBtn.onclick = () => {
+      playerName = playerNameInput.value.trim() || 'ไม่ระบุ';
+      loginOverlay.style.display = 'none';
+      controls.style.display = 'flex';
+      startGame();
+    };
+
+    startBtn.onclick = startGame;
+
+    function startGame() {
+      clearInterval(timerInterval);
+      seconds = 0;
+      timerDisplay.textContent = '00:00';
+      timerInterval = setInterval(() => {
+        seconds++;
+        const m = String(Math.floor(seconds/60)).padStart(2,'0');
+        const s = String(seconds%60).padStart(2,'0');
+        timerDisplay.textContent = `${m}:${s}`;
+      }, 1000);
+
+      const level = levelSelect.value;
+      const n = 9;
+      const { solution, puzzle } = generatePuzzle(n, level);
+      window.current = { level, n, solution, puzzle };
+      renderBoard();
+      updateMissing();
+    }
+
+    function generatePuzzle(n, level) {
+      const sol = Array.from({ length: n }, () => Array(n).fill(0));
+      fillGrid(sol, n);
+      // shuffle values
+      const map = shuffleArray(Array.from({length:n}, (_,i)=>i+1));
+      for (let i=0;i<n;i++) for (let j=0;j<n;j++) sol[i][j] = map[sol[i][j]-1];
+      const puzzle = sol.map(r=>r.slice());
+      const removeCount = { easy:30, medium:40, hard:50, expert:55 }[level];
+      let rem=0;
+      while(rem<removeCount){
+        const i=Math.floor(Math.random()*n), j=Math.floor(Math.random()*n);
+        if(puzzle[i][j]){ puzzle[i][j]=0; rem++; }
+      }
+      return { solution: sol, puzzle };
+    }
+
+    function fillGrid(grid, n) {
+      const nums = Array.from({length:n}, (_,i)=>i+1);
+      function dfs(idx=0) {
+        if(idx===n*n) return true;
+        const r=Math.floor(idx/n), c=idx%n;
+        shuffleArray(nums);
+        for(const num of nums) {
+          if(valid(grid,r,c,num,n)){
+            grid[r][c]=num;
+            if(dfs(idx+1)) return true;
+            grid[r][c]=0;
+          }
+        }
+        return false;
+      }
+      dfs();
+    }
+
+    function valid(g,r,c,num,n){
+      const b=3;
+      for(let i=0;i<n;i++) if(g[r][i]===num||g[i][c]===num) return false;
+      const br=Math.floor(r/b)*b, bc=Math.floor(c/b)*b;
+      for(let i=0;i<b;i++) for(let j=0;j<b;j++) if(g[br+i][bc+j]===num) return false;
+      return true;
+    }
+
+    function renderBoard() {
+      const { n, puzzle } = window.current;
+      boardEl.style.gridTemplateColumns = `repeat(${n}, 45px)`;
+      boardEl.innerHTML = '';
+      puzzle.forEach((row,i) => row.forEach((val,j) => {
+        const input=document.createElement('input');
+        input.className='cell'; input.maxLength=1;
+        if(val){ input.value=val; input.disabled=true; input.style.background='#ddd'; }
+        else input.oninput = () => handleInput(input,i,j);
+        boardEl.appendChild(input);
+      }));
+    }
+
+    function handleInput(input,i,j){
+      const val=Number(input.value);
+      const { solution, puzzle } = window.current;
+      if(val===solution[i][j]){
+        input.disabled=true; input.style.background='#ddd';
+        puzzle[i][j]=val;
+        updateMissing();
+        if([...boardEl.children].every(c=>c.disabled)) gameWin();
+      } else input.style.color='red';
+    }
+
+    function updateMissing(){
+      const { n, puzzle } = window.current;
+      const counts=Array(n+1).fill(0);
+      puzzle.flat().forEach(v=>v&&counts[v]++);
+      missingEl.innerHTML='';
+      for(let num=1;num<=n;num++){
+        const miss=n-counts[num];
+        const div=document.createElement('div'); div.className='missing-item';
+        div.innerHTML=`<div class="num">${num}</div><div class="count">${miss}</div>`;
+        missingEl.appendChild(div);
+      }
+    }
+
+    function gameWin(){
+      clearInterval(timerInterval);
+      const time=timerDisplay.textContent;
+      alert(`ยินดีด้วย ${playerName}! คุณทำสำเร็จในเวลา ${time}`);
+      saveScore(playerName, window.current.level, time);
+      loadLeaderboard();
+    }
+
+    function saveScore(name, level, time){
+      const key='sudoku_leaderboard';
+      const list=JSON.parse(localStorage.getItem(key)||'[]');
+      list.push({ name, level, time });
+      list.sort((a,b)=>{
+        const [am,as]=a.time.split(':').map(Number);
+        const [bm,bs]=b.time.split(':').map(Number);
+        return (am*60+as)-(bm*60+bs);
+      });
+      localStorage.setItem(key, JSON.stringify(list.slice(0,10)));
+    }
+
+    function loadLeaderboard(){
+      const key='sudoku_leaderboard';
+      const list=JSON.parse(localStorage.getItem(key)||'[]');
+      const tbody=document.querySelector('#leaderboard tbody'); tbody.innerHTML='';
+      list.forEach((r,i)=>{
+        const tr=document.createElement('tr');
+        tr.innerHTML=`<td>${i+1}</td><td>${r.name}</td><td>${r.time}</td><td>${r.level}</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function shuffleArray(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]];} return a; }
+
+    // initial load leaderboard
+    loadLeaderboard();
+  </script>
+</body>
+</html>

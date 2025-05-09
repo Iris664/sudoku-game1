@@ -55,7 +55,7 @@
             transition: background 0.3s;
         }
         #controls button:hover { background: #48a; }
-        #selectedCountry, #level, #score {
+        #playerName, #level, #score {
             margin: 0; font-weight: 600;
             background: #fff; padding: 8px 15px;
             border-radius: 5px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
@@ -104,40 +104,36 @@
         }
         #leaderboard tbody tr:nth-child(even) { background-color: #f9f9f9; }
         #leaderboard tbody tr:last-child td { border-bottom: none; }
-        #flagOverlay, #messageOverlay {
+        #nameOverlay, #messageOverlay {
             position: fixed; inset: 0;
             background: rgba(0,0,0,0.7);
             display: none; justify-content: center; align-items: center;
             z-index: 100; backdrop-filter: blur(5px);
         }
-        #flagBox, #messageBox {
+        #nameBox, #messageBox {
             background: #fff; padding: 25px;
             border-radius: 10px; text-align: center;
             max-height: 80vh; overflow-y: auto;
-            width: 95%; max-width: 500px;
+            width: 95%; max-width: 400px;
             box-shadow: 0 5px 15px rgba(0,0,0,0.3);
         }
-        #flagBox h2, #messageBox h2 {
+        #nameBox h2, #messageBox h2 {
             margin-top: 0; font-weight: 600;
             color: #48a; font-size: 1.6em; margin-bottom: 15px;
         }
-        .flag-btn {
-            font-size: 1.1rem; margin: 6px; cursor: pointer;
-            border: 1px solid #ddd; padding: 8px 12px;
-            border-radius: 5px; background: #fff;
-            display: inline-flex; align-items: center;
-            transition: background 0.2s, border-color 0.2s;
+        #nameBox input {
+            width: 100%; padding: 10px; font-size: 1.1em;
+            border: 1px solid #ccc; border-radius: 5px;
+            box-sizing: border-box;
         }
-        .flag-btn:hover { background: #eef; border-color: #bbb; }
-        .flag-btn span { margin-left: 8px; font-size: 0.95rem; color: #555; }
-        #messageBox p { font-size: 1.2em; margin-bottom: 20px; white-space: pre-wrap; }
-        #messageBox button {
+        #nameBox button, #messageBox button {
             padding: 10px 20px; font-size: 1.1em;
             border: none; border-radius: 5px; cursor: pointer;
             background: #48a; color: #fff; font-weight: 600;
             transition: background 0.3s;
+            margin-top: 15px;
         }
-        #messageBox button:hover { background: #368; }
+        #nameBox button:hover, #messageBox button:hover { background: #368; }
     </style>
 </head>
 <body>
@@ -148,8 +144,8 @@
 
     <main>
         <div id="controls">
-            <button id="chooseCountryBtn">Choose Country</button>
-            <span id="selectedCountry">-- Select Country --</span>
+            <button id="enterNameBtn">Enter Name</button>
+            <span id="playerName">-- Player --</span>
             <span id="level">Level: 1</span>
             <span id="score">Score: 0</span>
         </div>
@@ -157,17 +153,19 @@
         <div id="board"></div>
 
         <div id="leaderboard">
-            <h2>Country Leaderboard</h2>
+            <h2>Leaderboard</h2>
             <table>
-                <thead><tr><th>Rank</th><th>Country</th><th>Score</th></tr></thead>
+                <thead><tr><th>Rank</th><th>Player</th><th>Score</th></tr></thead>
                 <tbody></tbody>
             </table>
         </div>
     </main>
 
-    <div id="flagOverlay">
-        <div id="flagBox">
-            <h2>Select Your Country</h2>
+    <div id="nameOverlay">
+        <div id="nameBox">
+            <h2>Enter Your Name</h2>
+            <input type="text" id="nameInput" placeholder="Your name here">
+            <button id="nameSubmit">Start Game</button>
         </div>
     </div>
 
@@ -181,10 +179,10 @@
 
     <script>
         // --- DOM Elements ---
-        const flagOverlay = document.getElementById('flagOverlay');
-        const flagBox = document.getElementById('flagBox');
-        const chooseCountryBtn = document.getElementById('chooseCountryBtn');
-        const selectedCountryEl = document.getElementById('selectedCountry');
+        const nameOverlay = document.getElementById('nameOverlay');
+        const nameBox = document.getElementById('nameBox');
+        const enterNameBtn = document.getElementById('enterNameBtn');
+        const playerNameEl = document.getElementById('playerName');
         const board = document.getElementById('board');
         const timerEl = document.getElementById('timer');
         const scoreEl = document.getElementById('score');
@@ -194,9 +192,9 @@
         const messageTitleEl = document.getElementById('messageTitle');
         const messageTextEl = document.getElementById('messageText');
         const messageButton = document.getElementById('messageButton');
-       
+
         // --- Game Variables ---
-        let country = null;
+        let playerName = null;
         let level = 1;
         let score = 0;
         let timer = 0;
@@ -205,125 +203,127 @@
         let lock = false;
         let gameStarted = false;
 
-        // Asia region countries list
-        const countryList = [
-            ['KH','Kingdom of Cambodia'],
-            ['QA','State of Qatar'],
-            ['KR','Republic of Korea (South Korea)'],
-            ['KP','Democratic People\'s Republic of Korea (North Korea)'],
-            ['KZ','Republic of Kazakhstan'],
-            ['KG','Kyrgyz Republic'],
-            ['KW','State of Kuwait'],
-            ['GE','Georgia'],
-            ['JO','Hashemite Kingdom of Jordan'],
-            ['CN','People\'s Republic of China'],
-            ['SA','Kingdom of Saudi Arabia'],
-            ['SY','Syrian Arab Republic'],
-            ['CY','Republic of Cyprus'],
-            ['JP','Japan'],
-            ['TL','Democratic Republic of Timor-Leste'],
-            ['TR','Republic of Turkey'],
-            ['TM','Turkmenistan'],
-            ['TJ','Republic of Tajikistan'],
-            ['TH','Kingdom of Thailand'],
-            ['NP','Federal Democratic Republic of Nepal'],
-            ['BN','Brunei Darussalam'],
-            ['BD','People\'s Republic of Bangladesh'],
-            ['BH','Kingdom of Bahrain'],
-            ['PK','Islamic Republic of Pakistan'],
-            ['PS','State of Palestine'],
-            ['MM','Republic of the Union of Myanmar'],
-            ['PH','Republic of the Philippines'],
-            ['BT','Kingdom of Bhutan'],
-            ['MV','Republic of Maldives'],
-            ['MY','Malaysia'],
-            ['MN','Mongolia'],
-            ['YE','Republic of Yemen'],
-            ['LA','Lao People\'s Democratic Republic'],
-            ['LB','Lebanese Republic'],
-            ['VN','Socialist Republic of Vietnam'],
-            ['LK','Democratic Socialist Republic of Sri Lanka'],
-            ['AE','United Arab Emirates'],
-            ['SG','Republic of Singapore'],
-            ['AF','Islamic Emirate of Afghanistan'],
-            ['AZ','Republic of Azerbaijan'],
-            ['AM','Republic of Armenia'],
-            ['IN','Republic of India'],
-            ['ID','Republic of Indonesia'],
-            ['IQ','Republic of Iraq'],
-            ['IR','Islamic Republic of Iran'],
-            ['IL','State of Israel'],
-            ['UZ','Republic of Uzbekistan'],
-            ['OM','Sultanate of Oman']
-        ];
-
-        // Populate flags
-        countryList.forEach(([code,name]) => {
-            const btn = document.createElement('button');
-            btn.className = 'flag-btn';
-            btn.innerHTML = `${getFlagEmoji(code)} <span>${code}</span>`;
-            btn.title = name;
-            btn.onclick = () => selectCountry(code, name);
-            flagBox.appendChild(btn);
-        });
-
-        chooseCountryBtn.onclick = () => {
-            if (!gameStarted) flagOverlay.style.display = 'flex';
-            else showMessage("Game in Progress","Please finish the current level before choosing a new country.");
+        enterNameBtn.onclick = () => {
+            if (!gameStarted) nameOverlay.style.display = 'flex';
+            else showMessage("Game in Progress", "Please finish the current level before changing your name.");
         };
 
         messageButton.onclick = () => { messageOverlay.style.display = 'none'; };
 
-        function selectCountry(code,name) {
-            country = code;
-            selectedCountryEl.innerHTML = `${getFlagEmoji(code)} ${name}`;
+        document.getElementById('nameSubmit').onclick = () => {
+            const input = document.getElementById('nameInput').value.trim();
+            if (!input) return;
+            playerName = input;
+            playerNameEl.textContent = playerName;
             score = 0; level = 1;
-            flagOverlay.style.display = 'none';
+            nameOverlay.style.display = 'none';
             loadLeaderboard();
             startLevel();
             gameStarted = true;
-        }
+        };
 
         function startLevel() {
-            if (!country) { showMessage("Welcome!","Please select your country to start the game."); flagOverlay.style.display = 'flex'; return; }
+            if (!playerName) { showMessage("Welcome!", "Please enter your name to start the game."); nameOverlay.style.display = 'flex'; return; }
             clearInterval(interval);
             let numPairs = level;
             if (level > 10) numPairs = 10 + Math.ceil((level - 10)/2);
             if (numPairs < 2) numPairs = 2;
             let cards=[]; for (let i=1;i<=numPairs;i++){ cards.push(i); cards.push(i);} cards=shuffle(cards);
-            board.style.gridTemplateColumns=`repeat(auto-fit,minmax(60px,1fr))`;
-            board.style.gap=`${Math.max(8,20-Math.ceil(Math.sqrt(cards.length))*1.5)}px`;
-            board.style.maxWidth=`${Math.ceil(Math.sqrt(cards.length))*70+(Math.ceil(Math.sqrt(cards.length))-1)*Math.max(8,20-Math.ceil(Math.sqrt(cards.length))*1.5)}px`;
-            board.innerHTML=''; cards.forEach(num=>{let div=document.createElement('div');div.className='card';div.dataset.value=num;div.style.color=`hsl(${num*40%360},70%,40%)`;div.textContent='';div.onclick=()=>flip(div);board.appendChild(div);});
-            levelEl.textContent=`Level: ${level}`;
-            scoreEl.textContent=`Score: ${score}`;
-            timer=0;timerEl.textContent=`Timer: ${timer}s`;firstCard=null;lock=false;
-            interval = setInterval(()=>{timer++;timerEl.textContent=`Timer: ${timer}s`},1000);
-            gameStarted=true;
+            board.style.gridTemplateColumns = `repeat(auto-fit,minmax(60px,1fr))`;
+            board.style.gap = `${Math.max(8,20-Math.ceil(Math.sqrt(cards.length))*1.5)}px`;
+            board.style.maxWidth = `${Math.ceil(Math.sqrt(cards.length))*70+(Math.ceil(Math.sqrt(cards.length))-1)*Math.max(8,20-Math.ceil(Math.sqrt(cards.length))*1.5)}px`;
+            board.innerHTML = '';
+            cards.forEach(num => {
+                let div = document.createElement('div');
+                div.className = 'card';
+                div.dataset.value = num;
+                div.style.color = `hsl(${num*40%360},70%,40%)`;
+                div.textContent = '';
+                div.onclick = () => flip(div);
+                board.appendChild(div);
+            });
+            levelEl.textContent = `Level: ${level}`;
+            scoreEl.textContent = `Score: ${score}`;
+            timer = 0;
+            timerEl.textContent = `Timer: ${timer}s`;
+            firstCard = null;
+            lock = false;
+            interval = setInterval(() => { timer++; timerEl.textContent = `Timer: ${timer}s`; }, 1000);
+            gameStarted = true;
         }
 
         function flip(card) {
-            if(lock||card===firstCard||card.classList.contains('matched')||card.textContent!=='') return;
-            card.textContent=card.dataset.value;
-            if(!firstCard) firstCard=card; else {lock=true;setTimeout(()=>{if(card.dataset.value===firstCard.dataset.value){card.classList.add('matched');firstCard.classList.add('matched');score+=level*10;scoreEl.textContent=`Score: ${score}`;if(document.querySelectorAll('.card:not(.matched)').length===0) levelComplete();} else {card.textContent='';firstCard.textContent='';}firstCard=null;lock=false;},600);} }
-
-        function levelComplete() {
-            clearInterval(interval);gameStarted=false;
-            let timeLimit=level*5;let bonus=Math.max(0,(timeLimit-timer)*level);score+=bonus;
-            let msg=`Cleared Level ${level} in ${timer} seconds!`+ (bonus>0?`\nBonus: ${bonus} points!`:'\nNo time bonus this time.') + `\nTotal Score: ${score}`;
-            showMessage(`Level ${level} Complete!`,msg);
-            updateLeaderboard(score);loadLeaderboard();
-            messageButton.onclick=()=>{messageOverlay.style.display='none';messageButton.onclick=()=>{messageOverlay.style.display='none';};level++;startLevel();};
+            if(lock || card===firstCard || card.classList.contains('matched') || card.textContent!=='') return;
+            card.textContent = card.dataset.value;
+            if (!firstCard) firstCard = card;
+            else {
+                lock = true;
+                setTimeout(() => {
+                    if (card.dataset.value === firstCard.dataset.value) {
+                        card.classList.add('matched');
+                        firstCard.classList.add('matched');
+                        score += level * 10;
+                        scoreEl.textContent = `Score: ${score}`;
+                        if (document.querySelectorAll('.card:not(.matched)').length === 0) levelComplete();
+                    } else {
+                        card.textContent = '';
+                        firstCard.textContent = '';
+                    }
+                    firstCard = null;
+                    lock = false;
+                }, 600);
+            }
         }
 
-        function showMessage(title,text){messageTitleEl.textContent=title;messageTextEl.textContent=text;messageOverlay.style.display='flex';messageButton.onclick=()=>{messageOverlay.style.display='none';};}
+        function levelComplete() {
+            clearInterval(interval);
+            gameStarted = false;
+            let timeLimit = level * 5;
+            let bonus = Math.max(0, (timeLimit - timer) * level);
+            score += bonus;
+            let msg = `Cleared Level ${level} in ${timer} seconds!` + (bonus>0 ? `\nBonus: ${bonus} points!` : `\nNo time bonus this time.`) + `\nTotal Score: ${score}`;
+            showMessage(`Level ${level} Complete!`, msg);
+            updateLeaderboard(score);
+            loadLeaderboard();
+            messageButton.onclick = () => { messageOverlay.style.display = 'none'; messageButton.onclick = ()=>{ messageOverlay.style.display='none'; }; level++; startLevel(); };
+        }
 
-        function updateLeaderboard(finalScore){if(!country)return;let lb=JSON.parse(localStorage.getItem('lb_numbers')||'{}');lb[country]=(lb[country]||0)+finalScore;localStorage.setItem('lb_numbers',JSON.stringify(lb));}
-        function loadLeaderboard(){let lb=JSON.parse(localStorage.getItem('lb_numbers')||'{}');let arr=Object.entries(lb).map(([c,s])=>({c,s}));arr.sort((a,b)=>b.s-a.s);lbBody.innerHTML='';if(arr.length>0){arr.slice(0,10).forEach((r,i)=>{let tr=document.createElement('tr');tr.innerHTML=`<td>${i+1}</td><td>${getFlagEmoji(r.c)} ${r.c}</td><td>${r.s}</td>`;lbBody.appendChild(tr);});} else {let tr=document.createElement('tr');tr.innerHTML=`<td colspan="3">No scores yet. Play a game!</td>`;lbBody.appendChild(tr);} }
-        function shuffle(a){for(let i=a.length-1;i>0;i--){let j=Math.floor(Math.random()* (i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
-        function getFlagEmoji(code){if(!code||code.length!==2)return'';const base=0x1F1E6, A='A'.charCodeAt(0);return code.toUpperCase().split('').map(ch=>String.fromCodePoint(base+(ch.charCodeAt(0)-A))).join('');}
+        function showMessage(title, text) {
+            messageTitleEl.textContent = title;
+            messageTextEl.textContent = text;
+            messageOverlay.style.display = 'flex';
+            messageButton.onclick = () => { messageOverlay.style.display = 'none'; };
+        }
+
+        function updateLeaderboard(finalScore) {
+            if (!playerName) return;
+            let lb = JSON.parse(localStorage.getItem('lb_numbers') || '{}');
+            lb[playerName] = Math.max(lb[playerName] || 0, finalScore);
+            localStorage.setItem('lb_numbers', JSON.stringify(lb));
+        }
+        function loadLeaderboard() {
+            let lb = JSON.parse(localStorage.getItem('lb_numbers') || '{}');
+            let arr = Object.entries(lb).map(([p, s]) => ({ p, s }));
+            arr.sort((a, b) => b.s - a.s);
+            lbBody.innerHTML = '';
+            if (arr.length > 0) {
+                arr.slice(0, 10).forEach((r, i) => {
+                    let tr = document.createElement('tr');
+                    tr.innerHTML = `<td>${i+1}</td><td>${r.p}</td><td>${r.s}</td>`;
+                    lbBody.appendChild(tr);
+                });
+            } else {
+                let tr = document.createElement('tr');
+                tr.innerHTML = `<td colspan="3">No scores yet. Play a game!</td>`;
+                lbBody.appendChild(tr);
+            }
+        }
+
+        function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { let j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+
         loadLeaderboard();
-        showMessage("Welcome!","Please select your country to start the game.");
+        showMessage("Welcome!", "Please enter your name to start the game.");
     </script>
 </body>
 </html>
+

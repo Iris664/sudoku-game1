@@ -57,6 +57,14 @@
   <!-- ปุ่มโปร่งใสที่ตรงกับตำแหน่งปุ่มในภาพ -->
   <button id="sudoku-btn" class="button" onclick="location.href='sudoku-menu.html'"></button>
   <button id="match-btn" class="button" onclick="location.href='number-match-game.html'"></button>
+@media (max-width: 768px) {
+  #sudoku-btn, #match-btn {
+    display: block;
+    top: 25%;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+}
 
 </body>
 </html>
